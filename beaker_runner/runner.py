@@ -1,19 +1,5 @@
-"""
-Main orchestration loop: run commands sequentially with deduplication.
-
-Dedup is entirely based on Beaker experiment names containing the task hash.
-For each command:
-  1. Compute a deterministic hash from (command + run_hash)
-  2. Check if a matching experiment already exists in the workspace
-  3. If completed -> skip.  If running -> wait.  If failed -> relaunch.
-  4. Otherwise launch a new CPU experiment and wait for completion.
-
-The optional state_dir is only for writing debug/test artifacts.
-"""
-
 import json
 from pathlib import Path
-from typing import Dict, Optional
 
 from beaker import Beaker
 from rich.console import Console
@@ -37,10 +23,7 @@ class Runner:
         self.config = config
         self.beaker = Beaker.from_env(default_workspace=config.workspace)
 
-    # ------------------------------------------------------------------
     # Test artifact writing (state_dir is for debugging only)
-    # ------------------------------------------------------------------
-
     def _write_test_artifact(self, filename: str, data: dict):
         """Write a JSON artifact to state_dir for testing/debugging."""
         if not self.config.state_dir:
@@ -54,10 +37,7 @@ class Runner:
         except OSError as e:
             console.print(f"  [dim]Warning: could not write to state_dir: {e}[/dim]")
 
-    # ------------------------------------------------------------------
     # Main loop
-    # ------------------------------------------------------------------
-
     def run(self):
         cfg = self.config
 
@@ -96,9 +76,7 @@ class Runner:
             {"run_hash": cfg.run_hash, "tasks": results},
         )
 
-    # ------------------------------------------------------------------
     # Per-task logic
-    # ------------------------------------------------------------------
 
     def _process_task(
         self, index: int, command: str, task_hash: str, experiment_lookup: dict
@@ -167,10 +145,7 @@ class Runner:
         self._log_final(final)
         return final
 
-    # ------------------------------------------------------------------
     # Helpers
-    # ------------------------------------------------------------------
-
     def _print_url(self, workload):
         try:
             url = self.beaker.workload.url(workload)

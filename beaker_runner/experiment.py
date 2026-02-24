@@ -1,9 +1,3 @@
-"""
-Beaker API helpers: create CPU experiments, list recent experiments, monitor jobs.
-
-Uses beaker-py directly following cuvette's ExperimentLauncher patterns.
-"""
-
 import time
 from typing import Dict, List, Optional, Tuple
 

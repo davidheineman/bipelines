@@ -1,5 +1,4 @@
 import hashlib
-import json
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -88,20 +87,7 @@ def load_config_from_yaml(path: str) -> RunnerConfig:
     with open(path) as f:
         data = yaml.safe_load(f)
 
-    repos = [RepoConfig(**r) for r in data.get("repos", [])]
+    kwargs = {k: v for k, v in data.items() if k != "repos"}
+    kwargs["repos"] = [RepoConfig(**r) for r in data.get("repos", [])]
 
-    return RunnerConfig(
-        commands=data["commands"],
-        repos=repos,
-        workspace=data.get("workspace", "ai2/adaptability"),
-        clusters=data.get("clusters", ["ai2/saturn"]),
-        budget=data.get("budget", "ai2/oe-base"),
-        image=data.get("image", "ai2/cuda12.8-dev-ubuntu22.04-torch2.7.1"),
-        priority=data.get("priority", "normal"),
-        preemptible=data.get("preemptible", False),
-        run_hash=data.get("run_hash", ""),
-        experiment_prefix=data.get("experiment_prefix", "beaker-runner"),
-        description=data.get("description", "beaker-runner sequential task"),
-        state_dir=data.get("state_dir", None),
-        dry_run=data.get("dry_run", False),
-    )
+    return RunnerConfig(**kwargs)
