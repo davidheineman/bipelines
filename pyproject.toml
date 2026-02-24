@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beaker-runner"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "beaker-py>=2.0.1",
+    "cuvette",
+    "rich",
+    "pyyaml",
+]
+
+[project.scripts]
+beaker-runner = "beaker_runner.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["beaker_runner*"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+ignore = ["F403", "F405", "E501", "F811", "E731"]

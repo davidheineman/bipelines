@@ -1,0 +1,23 @@
+workspace: ai2/adaptability
+clusters:
+  - ai2/saturn
+budget: ai2/oe-base
+image: ai2/cuda12.8-dev-ubuntu22.04-torch2.7.1
+priority: normal
+preemptible: false
+
+# Unique identifier for this batch
+run_hash: my-eval-batch-v1
+
+experiment_prefix: beaker-runner
+description: "beaker-runner: example eval batch"
+
+repos:
+  - url: https://github.com/allenai/OLMo-core
+    branch: ladder-adapt
+    install: "pip install -e '.[beaker]'"
+
+commands:
+  - "echo hi"
+  - "echo hi"
+  - "echo hi"
