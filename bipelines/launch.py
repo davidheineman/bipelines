@@ -20,6 +20,7 @@ def launch(
     env: Optional[List[str]] = None,
     secrets: Optional[List[str]] = None,
     extra_args: Optional[List[str]] = None,
+    allow_dirty: bool = False,
 ) -> Recipe:
     env = env or []
     secrets = secrets or []
@@ -47,6 +48,7 @@ def launch(
         env_vars=env or None,
         env_secrets=secrets or None,
         yes=True,
+        allow_dirty=allow_dirty,
     )
 
     if dry_run:
