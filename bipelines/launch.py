@@ -28,6 +28,7 @@ recipe = Recipe(
     env_vars=params.get("env_vars"),
     env_secrets=params.get("env_secrets"),
     weka=params.get("weka"),
+    default_python_version="3.12",
     yes=True,
 )
 if params.get("dry_run"):
