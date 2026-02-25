@@ -1,13 +1,17 @@
-run_hash: my-eval-batch-v2 # run name
-hash_env_var: BEAKER_RUNNER_HASH # run hash
+run_hash: debug-batch
+workspace: ai2/adaptability
 
 repos:
-  - url: https://github.com/allenai/OLMo-core
-    branch: ladder-adapt
-    install: "uv pip install -e '.[beaker]'"
+  - url: https://github.com/davidheineman/simple-job
+    branch: main
+    install: "uv pip install -e ."
 
 commands:
-  - command: "python -m olmo_core.launch --run-name test-run"
-    libs:
-      - OLMo-core
-  - "echo 'Experiment: test/foo → https://beaker.org/ex/FAKE123' && sleep 1"
+  - command: "python launch.py --workspace ai2/adaptability --budget ai2/oe-base --env BRUNNER_HASH=1"
+    lib: simple-job
+
+  - command: "python launch.py --workspace ai2/adaptability --budget ai2/oe-base --env BRUNNER_HASH=2"
+    lib: simple-job
+
+  - command: "python launch.py --workspace ai2/adaptability --budget ai2/oe-base --env BRUNNER_HASH=3"
+    lib: simple-job

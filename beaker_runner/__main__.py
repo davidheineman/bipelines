@@ -33,15 +33,14 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--run-hash", type=str, default="", help="Unique identifier for this batch of tasks"
+        "--workspace",
+        type=str,
+        default=None,
+        help="Beaker workspace (e.g. ai2/adaptability) for experiment deduplication",
     )
     parser.add_argument(
-        "--hash-env-var",
-        type=str,
-        default="BEAKER_RUNNER_HASH",
-        help="Env var name to inject the task hash into commands (default: BEAKER_RUNNER_HASH)",
+        "--run-hash", type=str, default="", help="Unique identifier for this batch of tasks"
     )
-
     parser.add_argument(
         "--state-dir", type=str, default=None, help="Directory to save run artifacts"
     )
@@ -68,10 +67,10 @@ def main():
             config.state_dir = args.state_dir
         if args.run_hash:
             config.run_hash = args.run_hash
+        if args.workspace:
+            config.workspace = args.workspace
         if args.local_env_dir != ".beaker-runner":
             config.local_env_dir = args.local_env_dir
-        if args.hash_env_var != "BEAKER_RUNNER_HASH":
-            config.hash_env_var = args.hash_env_var
     else:
         if not args.commands:
             print("Error: provide at least one --command or use --config", file=sys.stderr)
@@ -85,8 +84,8 @@ def main():
         config = RunnerConfig(
             commands=[CommandConfig(command=c) for c in args.commands],
             repos=repos,
+            workspace=args.workspace,
             run_hash=args.run_hash,
-            hash_env_var=args.hash_env_var,
             local_env_dir=args.local_env_dir,
             state_dir=args.state_dir,
             dry_run=args.dry_run,

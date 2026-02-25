@@ -1,8 +1,12 @@
 import json
 import os
+import re
+import time
 from pathlib import Path
+from typing import Optional
 
 from beaker import Beaker
+from beaker import beaker_pb2 as pb2
 from rich.console import Console
 from rich.table import Table
 
@@ -10,11 +14,32 @@ from beaker_runner.config import CommandConfig, RunnerConfig
 from beaker_runner.experiment import (
     get_experiment_status,
     run_command_and_capture_experiment,
-    wait_for_experiment,
 )
 from beaker_runner.local_env import setup_local_env
 
 console = Console()
+
+HASH_TAG_RE = re.compile(r"\(brunner:([a-f0-9]+)\)\s*")
+HASH_TAG_SEARCH = "(brunner:"
+
+WORKLOAD_STATUS_DISPLAY = {
+    pb2.WorkloadStatus.STATUS_SUBMITTED: "pending",
+    pb2.WorkloadStatus.STATUS_QUEUED: "pending",
+    pb2.WorkloadStatus.STATUS_INITIALIZING: "pending",
+    pb2.WorkloadStatus.STATUS_READY_TO_START: "pending",
+    pb2.WorkloadStatus.STATUS_RUNNING: "running",
+    pb2.WorkloadStatus.STATUS_STOPPING: "running",
+    pb2.WorkloadStatus.STATUS_UPLOADING_RESULTS: "running",
+    pb2.WorkloadStatus.STATUS_SUCCEEDED: "completed",
+    pb2.WorkloadStatus.STATUS_FAILED: "failed",
+    pb2.WorkloadStatus.STATUS_CANCELED: "canceled",
+}
+
+
+def _parse_hash_tag(description: str) -> Optional[str]:
+    """Extract the brunner task hash from a description like '(brunner:abc123) ...'."""
+    m = HASH_TAG_RE.match(description)
+    return m.group(1) if m else None
 
 
 class Runner:
@@ -22,25 +47,69 @@ class Runner:
         self.config = config
         self.beaker = Beaker.from_env()
         self._venv_path = None
-        self._state = self._load_state()
+        self._workload_cache: dict[str, pb2.Workload] = {}
 
-    # ── State persistence ──────────────────────────────────────────────
+    # ── Beaker-based deduplication ──────────────────────────────────────
 
-    def _state_path(self) -> Path:
-        return Path(self.config.local_env_dir).resolve() / "state.json"
+    def _build_workload_cache(self):
+        """Pre-fetch all brunner-tagged workloads from the Beaker workspace."""
+        self._workload_cache = {}
+        if not self.config.workspace:
+            return
+        try:
+            for w in self.beaker.workload.list(
+                workspace=self.config.workspace,
+                name_or_description=HASH_TAG_SEARCH,
+            ):
+                task_hash = _parse_hash_tag(w.experiment.description or "")
+                if task_hash and task_hash not in self._workload_cache:
+                    self._workload_cache[task_hash] = w
+        except Exception as e:
+            console.print(f"  [dim]Warning: could not query Beaker workspace: {e}[/dim]")
 
-    def _load_state(self) -> dict:
-        path = self._state_path()
-        if path.exists():
-            with open(path) as f:
-                return json.load(f)
-        return {}
+    def _tag_experiment(self, experiment_id: str, task_hash: str):
+        """Prepend the brunner hash tag to the experiment description, preserving any original text.
 
-    def _save_state(self):
-        path = self._state_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w") as f:
-            json.dump(self._state, f, indent=2)
+        Idempotent: strips an existing tag before re-applying, so the job's own
+        description updates are kept intact even if we re-tag periodically.
+        """
+        try:
+            workload = self.beaker.workload.get(experiment_id)
+            current_desc = workload.experiment.description or ""
+            original = HASH_TAG_RE.sub("", current_desc, count=1)
+            new_desc = f"(brunner:{task_hash}) {original}".rstrip()
+            if new_desc != current_desc:
+                self.beaker.workload.update(workload, description=new_desc)
+        except Exception as e:
+            console.print(f"  [dim]Warning: could not tag experiment: {e}[/dim]")
+
+    def _wait_for_experiment(
+        self,
+        experiment_id: str,
+        task_hash: str,
+        poll_interval: float = 15.0,
+        retag_every: int = 4,
+    ) -> str:
+        """Poll a Beaker experiment until terminal, re-tagging the description periodically."""
+        last_status = None
+        polls = 0
+
+        while True:
+            status = get_experiment_status(self.beaker, experiment_id)
+
+            if status != last_status:
+                console.print(f"  Status: [yellow]{status}[/yellow]")
+                last_status = status
+
+            if status in ("completed", "failed", "canceled"):
+                self._tag_experiment(experiment_id, task_hash)
+                return status
+
+            polls += 1
+            if polls % retag_every == 0:
+                self._tag_experiment(experiment_id, task_hash)
+
+            time.sleep(poll_interval)
 
     # ── Venv helpers ───────────────────────────────────────────────────
 
@@ -61,12 +130,17 @@ class Runner:
         console.print()
         console.print("[bold]Beaker Runner[/bold]")
         console.print(f"  Run hash:   {cfg.run_hash or '(none)'}")
+        console.print(f"  Workspace:  {cfg.workspace or '(none — dedup disabled)'}")
         console.print(f"  Commands:   {len(cfg.commands)}")
         if cfg.repos:
             console.print(f"  Repos:      {len(cfg.repos)} (local install)")
         if cfg.dry_run:
             console.print("  [yellow]DRY RUN — commands will not be executed[/yellow]")
         console.print()
+
+        if cfg.workspace:
+            console.print("[dim]Fetching existing experiments from Beaker...[/dim]")
+            self._build_workload_cache()
 
         if cfg.repos:
             console.rule("[bold]Setting up local environment[/bold]")
@@ -101,14 +175,13 @@ class Runner:
 
         console.rule(f"Task {index + 1}/{total}")
         console.print(f"  Command: {cmd.command}")
-        if cmd.libs:
-            console.print(f"  Libs:    {', '.join(cmd.libs)}")
+        if cmd.lib:
+            console.print(f"  Lib:     {cmd.lib}")
         console.print(f"  Hash:    {task_hash}")
 
-        # Check local state for a previously tracked experiment
-        state_entry = self._state.get(task_hash)
-        if state_entry and state_entry.get("experiment_id"):
-            result = self._check_existing_experiment(state_entry, task_hash)
+        cached = self._workload_cache.get(task_hash)
+        if cached is not None:
+            result = self._check_existing_experiment(cached, task_hash)
             if result is not None:
                 return result
 
@@ -116,15 +189,15 @@ class Runner:
             console.print("  [dim]Dry run — would execute command[/dim]")
             return "dry_run"
 
-        # Run the command locally
         env = self._get_extra_env()
-        env[cfg.hash_env_var] = task_hash
+        cwd = str(cfg.repo_dir(cmd.lib)) if cmd.lib else None
 
         console.print("  [cyan]Running locally...[/cyan]")
         try:
             exp_name, url, exp_id = run_command_and_capture_experiment(
                 command=cmd.command,
                 env=env,
+                cwd=cwd,
             )
         except RuntimeError as e:
             console.print(f"  [red]Error: {e}[/red]")
@@ -133,18 +206,9 @@ class Runner:
         console.print(f"  Experiment: [cyan]{exp_name}[/cyan]")
         console.print(f"  URL: [link={url}]{url}[/link]")
 
-        self._state[task_hash] = {
-            "experiment_name": exp_name,
-            "experiment_id": exp_id,
-            "url": url,
-            "status": "running",
-        }
-        self._save_state()
+        self._tag_experiment(exp_id, task_hash)
 
-        final = wait_for_experiment(self.beaker, exp_id)
-
-        self._state[task_hash] = {**self._state[task_hash], "status": final}
-        self._save_state()
+        final = self._wait_for_experiment(exp_id, task_hash)
 
         if final == "completed":
             console.print("  [green]Task completed successfully.[/green]")
@@ -153,13 +217,18 @@ class Runner:
 
         return final
 
-    def _check_existing_experiment(self, state_entry: dict, task_hash: str) -> str | None:
+    def _check_existing_experiment(
+        self, workload: pb2.Workload, task_hash: str
+    ) -> Optional[str]:
         """Check a previously-tracked experiment. Returns status to use, or None to re-run."""
-        exp_id = state_entry["experiment_id"]
-        url = state_entry.get("url", "")
+        exp_id = workload.experiment.id
+        url = self.beaker.workload.url(workload)
 
-        if state_entry.get("status") == "completed":
-            console.print("  [green]Already completed — skipping.[/green]")
+        display_status = WORKLOAD_STATUS_DISPLAY.get(workload.status, "unknown")
+
+        if display_status == "completed":
+            console.print(f"  [green]Already completed on Beaker — skipping.[/green]")
+            console.print(f"  URL: [link={url}]{url}[/link]")
             return "completed"
 
         try:
@@ -169,17 +238,16 @@ class Runner:
             return None
 
         if status == "completed":
-            console.print("  [green]Previously launched experiment completed — skipping.[/green]")
-            self._state[task_hash] = {**state_entry, "status": "completed"}
-            self._save_state()
+            console.print(
+                "  [green]Previously launched experiment completed — skipping.[/green]"
+            )
+            console.print(f"  URL: [link={url}]{url}[/link]")
             return "completed"
 
         if status == "running":
             console.print("  [yellow]Hooking to running experiment...[/yellow]")
             console.print(f"  URL: [link={url}]{url}[/link]")
-            final = wait_for_experiment(self.beaker, exp_id)
-            self._state[task_hash] = {**state_entry, "status": final}
-            self._save_state()
+            final = self._wait_for_experiment(exp_id, task_hash)
             return final
 
         console.print(f"  [red]Previous run {status} — re-running.[/red]")
@@ -196,8 +264,11 @@ class Runner:
 
         for i, cmd in enumerate(self.config.commands):
             task_hash = self.config.task_hash(cmd)
-            state_entry = self._state.get(task_hash)
-            status = state_entry.get("status", "new") if state_entry else "new"
+            cached = self._workload_cache.get(task_hash)
+            if cached is not None:
+                status = WORKLOAD_STATUS_DISPLAY.get(cached.status, "unknown")
+            else:
+                status = "new"
             display_cmd = cmd.command if len(cmd.command) <= 80 else cmd.command[:77] + "..."
             table.add_row(str(i + 1), task_hash, display_cmd, status)
 

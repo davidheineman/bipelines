@@ -1,6 +1,7 @@
 import hashlib
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
+from pathlib import Path
 
 import yaml
 
@@ -25,7 +26,7 @@ class CommandConfig:
     """A command to run locally that launches a Beaker experiment."""
 
     command: str
-    libs: List[str] = field(default_factory=list)
+    lib: Optional[str] = None
 
 
 @dataclass
@@ -35,8 +36,8 @@ class RunnerConfig:
     commands: List[CommandConfig]
     repos: List[RepoConfig] = field(default_factory=list)
 
+    workspace: Optional[str] = None
     run_hash: str = ""
-    hash_env_var: str = "BEAKER_RUNNER_HASH"
 
     local_env_dir: str = ".beaker-runner"
     state_dir: Optional[str] = None
@@ -47,15 +48,18 @@ class RunnerConfig:
         return {r.name: r for r in self.repos}
 
     def validate(self):
-        """Check that all libs referenced by commands exist in repos."""
+        """Check that all lib references in commands point to known repos."""
         repo_names = {r.name for r in self.repos}
         for cmd in self.commands:
-            for lib in cmd.libs:
-                if lib not in repo_names:
-                    raise ValueError(
-                        f"Command references unknown lib '{lib}'. "
-                        f"Available repos: {', '.join(sorted(repo_names))}"
-                    )
+            if cmd.lib and cmd.lib not in repo_names:
+                raise ValueError(
+                    f"Command references unknown lib '{cmd.lib}'. "
+                    f"Available repos: {', '.join(sorted(repo_names))}"
+                )
+
+    def repo_dir(self, repo_name: str) -> Path:
+        """Resolve the on-disk path for a cloned repo."""
+        return Path(self.local_env_dir).resolve() / "repos" / repo_name
 
     def task_hash(self, cmd: CommandConfig) -> str:
         """Deterministic hash for deduplication: command + run_hash."""

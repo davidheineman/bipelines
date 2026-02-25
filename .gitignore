@@ -3,3 +3,4 @@
 *.pyc
 .beaker-runner/
 uv.lock
+simple-job/
