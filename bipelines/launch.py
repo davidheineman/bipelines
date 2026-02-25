@@ -96,12 +96,12 @@ def _ensure_launch_env(base_dir: str = ".bipelines") -> tuple[Path, str]:
         console.print("[dim]Installing bipelines into launch venv...[/dim]")
         if uv:
             subprocess.run(
-                [uv, "pip", "install", "--python", venv_python, str(repo_path)],
+                [uv, "pip", "install", "--python", venv_python, "bipelines"],
                 check=True, **devnull,
             )
         else:
             subprocess.run(
-                [venv_python, "-m", "pip", "install", str(repo_path)],
+                [venv_python, "-m", "pip", "install", "bipelines"],
                 check=True, **devnull,
             )
 
