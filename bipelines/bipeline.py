@@ -14,7 +14,7 @@ from bipelines.experiment import (
     get_experiment_status,
     run_command_and_capture_experiment,
 )
-from bipelines.local_env import setup_local_env, create_venv, get_venv_env
+from bipelines.local_env import setup_local_env
 
 console = Console()
 
@@ -46,7 +46,6 @@ class Bipeline:
         self.config = config
         self.beaker = Beaker.from_env()
         self._workload_cache: dict[str, pb2.Workload] = {}
-        self._venv_path: Optional[Path] = None
 
     # ── Beaker-based deduplication ──────────────────────────────────────
 
@@ -134,12 +133,10 @@ class Bipeline:
             console.print("[dim]Fetching existing experiments from Beaker...[/dim]")
             self._build_workload_cache()
 
-        console.rule("[bold]Setting up local environment[/bold]")
         if cfg.repos:
-            self._venv_path = setup_local_env(cfg.repos, env_dir=cfg.local_env_dir)
-        else:
-            self._venv_path = create_venv(cfg.local_env_dir)
-        console.print()
+            console.rule("[bold]Setting up local environment[/bold]")
+            setup_local_env(cfg.repos, env_dir=cfg.local_env_dir)
+            console.print()
 
         self._print_task_table()
 
@@ -187,14 +184,11 @@ class Bipeline:
 
         cwd = str(cfg.repo_dir(cmd.lib)) if cmd.lib else None
 
-        venv_env = get_venv_env(self._venv_path) if self._venv_path else None
-
         console.print("  [cyan]Running locally...[/cyan]")
         try:
             exp_name, url, exp_id = run_command_and_capture_experiment(
                 command=cmd.command,
                 cwd=cwd,
-                env=venv_env,
             )
         except RuntimeError as e:
             console.print(f"  [red]Error: {e}[/red]")

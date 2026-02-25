@@ -42,74 +42,16 @@ def _env_with_uv() -> dict:
     return env
 
 
-def create_venv(env_dir: str = ".bipelines") -> Path:
-    """Create a virtual environment under env_dir/venv and bootstrap it with
-    bipelines and its dependencies. Returns the venv path."""
-    env_path = Path(env_dir).resolve()
-    venv_path = env_path / "venv"
-
-    if venv_path.exists():
-        console.print(f"  Using existing venv at [cyan]{venv_path}[/cyan]")
-        return venv_path
-
-    console.print(f"  Creating venv at [cyan]{venv_path}[/cyan]...")
-    env_path.mkdir(parents=True, exist_ok=True)
-
-    uv = _find_uv()
-    if uv:
-        subprocess.run([uv, "venv", str(venv_path)], check=True)
-    else:
-        subprocess.run([sys.executable, "-m", "venv", str(venv_path)], check=True)
-
-    _bootstrap_venv(venv_path)
-    return venv_path
-
-
-def _bootstrap_venv(venv_path: Path):
-    """Install bipelines and its dependencies into the fresh venv so that
-    commands run inside it have access to gantry, beaker-py, etc."""
-    import bipelines
-    project_root = Path(bipelines.__file__).resolve().parent.parent
-
-    uv = _find_uv()
-    venv_python = str(venv_path / "bin" / "python")
-
-    if (project_root / "pyproject.toml").exists():
-        src = str(project_root)
-    else:
-        src = "bipelines"
-
-    console.print(f"  Installing bipelines into venv...")
-    if uv:
-        subprocess.run([uv, "pip", "install", "--python", venv_python, src], check=True)
-    else:
-        subprocess.run([venv_python, "-m", "pip", "install", src], check=True)
-
-
-def get_venv_env(venv_path: Path) -> dict:
-    """Return an env dict that activates the given venv (sets PATH, VIRTUAL_ENV,
-    and UV_PYTHON so that uv commands also target this venv)."""
-    env = _env_with_uv()
-    venv_bin = str(venv_path / "bin")
-    venv_python = str(venv_path / "bin" / "python")
-    env["VIRTUAL_ENV"] = str(venv_path)
-    env["PATH"] = f"{venv_bin}:{env.get('PATH', '')}"
-    env["UV_PYTHON"] = venv_python
-    env.pop("PYTHONHOME", None)
-    return env
-
-
 def setup_local_env(
     repos: List[RepoConfig],
     env_dir: str = ".bipelines",
-) -> Path:
-    """Create a venv, clone repos, and install them into the venv. Returns the venv path."""
+) -> None:
+    """Clone repos and install them into the current environment."""
     env_path = Path(env_dir).resolve()
     repos_path = env_path / "repos"
     repos_path.mkdir(parents=True, exist_ok=True)
 
-    venv_path = create_venv(env_dir)
-    install_env = get_venv_env(venv_path)
+    install_env = _env_with_uv()
 
     for repo in repos:
         repo_path = repos_path / repo.name
@@ -155,5 +97,3 @@ def setup_local_env(
                 env=install_env,
                 check=True,
             )
-
-    return venv_path
