@@ -14,6 +14,7 @@ def launch(
     *,
     clusters: Optional[List[str]] = None,
     name: str = "bipelines",
+    description: str = "bipelines parent job",
     show_logs: bool = True,
     dry_run: bool = False,
     env: Optional[List[str]] = None,
@@ -39,6 +40,7 @@ def launch(
     recipe = Recipe(
         args=task_args,
         name=name,
+        description=description,
         workspace=workspace,
         budget=budget,
         clusters=clusters,

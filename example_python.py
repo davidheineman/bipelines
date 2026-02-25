@@ -33,6 +33,8 @@ bipeline = Bipeline(config)
 # results = bipeline.run() # launch locally
 
 launch(
+    name="bipelines-python-test",
+    description="this is a parent job!",
     config=config,
     workspace="ai2/adaptability",
     budget="ai2/oe-base",
