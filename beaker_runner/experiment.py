@@ -31,6 +31,7 @@ def run_command_and_capture_experiment(
     Raises RuntimeError if the command fails or no experiment line is found.
     """
     merged_env = {**os.environ, **(env or {})}
+    merged_env.setdefault("COLUMNS", "500")
 
     proc = subprocess.Popen(
         command,
