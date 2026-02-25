@@ -1,5 +1,5 @@
 import argparse
-import tempfile
+import json
 from typing import List, Optional, Union
 
 from gantry.api import Recipe
@@ -32,16 +32,9 @@ def launch(
             raise ValueError(f"Invalid secret format '{sec}', expected ENV_VAR=SECRET_NAME")
 
     if isinstance(config, BipelineConfig):
-        tmp = tempfile.NamedTemporaryFile(
-            suffix=".yaml", prefix="bipelines_", delete=False, mode="w"
-        )
-        config.to_yaml(tmp.name)
-        tmp.close()
-        config_path = tmp.name
+        task_args = ["bipelines", "--config-json", json.dumps(config.to_dict())] + extra_args
     else:
-        config_path = config
-
-    task_args = ["bipelines", "--config", config_path] + extra_args
+        task_args = ["bipelines", "--config", config] + extra_args
 
     recipe = Recipe(
         args=task_args,

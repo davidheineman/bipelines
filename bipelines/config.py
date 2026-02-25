@@ -97,10 +97,7 @@ class BipelineConfig:
         return path
 
 
-def load_config_from_yaml(path: str) -> BipelineConfig:
-    with open(path) as f:
-        data = yaml.safe_load(f)
-
+def load_config_from_dict(data: dict) -> BipelineConfig:
     kwargs = {k: v for k, v in data.items() if k not in ("repos", "commands")}
     kwargs["repos"] = [RepoConfig(**r) for r in data.get("repos", [])]
 
@@ -117,3 +114,9 @@ def load_config_from_yaml(path: str) -> BipelineConfig:
     config = BipelineConfig(**kwargs)
     config.validate()
     return config
+
+
+def load_config_from_yaml(path: str) -> BipelineConfig:
+    with open(path) as f:
+        data = yaml.safe_load(f)
+    return load_config_from_dict(data)

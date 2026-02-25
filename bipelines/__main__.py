@@ -2,7 +2,7 @@ import argparse
 import json
 import sys
 
-from bipelines.config import CommandConfig, RepoConfig, BipelineConfig, load_config_from_yaml
+from bipelines.config import CommandConfig, RepoConfig, BipelineConfig, load_config_from_yaml, load_config_from_dict
 from bipelines.bipeline import Bipeline
 
 
@@ -13,6 +13,7 @@ def parse_args():
     )
 
     parser.add_argument("--config", "-c", type=str, help="Path to YAML config file")
+    parser.add_argument("--config-json", type=str, help="Inline JSON config string")
     parser.add_argument(
         "--command",
         action="append",
@@ -57,8 +58,12 @@ def parse_args():
 def main():
     args = parse_args()
 
-    if args.config:
+    if args.config_json:
+        config = load_config_from_dict(json.loads(args.config_json))
+    elif args.config:
         config = load_config_from_yaml(args.config)
+
+    if args.config_json or args.config:
         if args.commands:
             config.commands = [CommandConfig(command=c) for c in args.commands]
         if args.dry_run:
