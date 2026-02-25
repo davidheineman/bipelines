@@ -4,23 +4,21 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "brunner"
-version = "0.1.0"
+version = "1.0.0"
 requires-python = ">=3.10"
 dependencies = [
     "beaker-py>=2.0.1",
+    "beaker-gantry",
     "rich",
     "pyyaml",
 ]
 
 [project.scripts]
 brunner = "beaker_runner.__main__:main"
+brunner-launch = "beaker_runner.launch:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["beaker_runner*"]
 
-[tool.ruff]
-line-length = 100
-
-[tool.ruff.lint]
-ignore = ["F403", "F405", "E501", "F811", "E731"]
+[tool.gantry]

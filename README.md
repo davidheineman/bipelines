@@ -30,3 +30,13 @@ brunner \
     --repo '{"url":"https://github.com/allenai/OLMo-core","branch":"main","install":"uv pip install -e .[beaker]"}' \
     --run-hash test-v1
 ```
+
+### gantry usage
+
+```sh
+brunner-launch \
+    --config example_config.yaml \
+    --workspace ai2/adaptability \
+    --budget ai2/oe-base \
+    --env BEAKER_TOKEN=DAVID_BEAKER_TOKEN
+```
