@@ -7,6 +7,10 @@ chain together beaker commands with bipelines: pipelines for beaker!
 ### quick start
 
 ```sh
+# Install from GitHub
+pip install git+https://github.com/davidheineman/bipelines.git
+
+# ... or pull and install
 uv sync
 ```
 

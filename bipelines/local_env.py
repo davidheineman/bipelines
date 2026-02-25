@@ -42,36 +42,68 @@ def _env_with_uv() -> dict:
     return env
 
 
+def create_venv(env_dir: str = ".bipelines") -> Path:
+    """Create a virtual environment under env_dir/venv. Returns the venv path."""
+    env_path = Path(env_dir).resolve()
+    venv_path = env_path / "venv"
+
+    if venv_path.exists():
+        console.print(f"  Using existing venv at [cyan]{venv_path}[/cyan]")
+        return venv_path
+
+    console.print(f"  Creating venv at [cyan]{venv_path}[/cyan]...")
+    env_path.mkdir(parents=True, exist_ok=True)
+
+    uv = _find_uv()
+    if uv:
+        subprocess.run([uv, "venv", str(venv_path)], check=True)
+    else:
+        subprocess.run([sys.executable, "-m", "venv", str(venv_path)], check=True)
+
+    return venv_path
+
+
+def get_venv_env(venv_path: Path) -> dict:
+    """Return an env dict that activates the given venv (sets PATH, VIRTUAL_ENV)."""
+    env = _env_with_uv()
+    venv_bin = str(venv_path / "bin")
+    env["VIRTUAL_ENV"] = str(venv_path)
+    env["PATH"] = f"{venv_bin}:{env.get('PATH', '')}"
+    env.pop("PYTHONHOME", None)
+    return env
+
+
 def setup_local_env(
     repos: List[RepoConfig],
     env_dir: str = ".bipelines",
-) -> None:
-    """Clone repos and install them into the current environment."""
+) -> Path:
+    """Create a venv, clone repos, and install them into the venv. Returns the venv path."""
     env_path = Path(env_dir).resolve()
     repos_path = env_path / "repos"
     repos_path.mkdir(parents=True, exist_ok=True)
 
-    install_env = _env_with_uv()
+    venv_path = create_venv(env_dir)
+    install_env = get_venv_env(venv_path)
 
     for repo in repos:
         repo_path = repos_path / repo.name
 
         if not repo_path.exists():
-            console.print(f"💨 Cloning [cyan]{repo.url}[/cyan]...")
+            console.print(f"  Cloning [cyan]{repo.url}[/cyan]...")
             subprocess.run(
                 ["git", "clone", repo.url, str(repo_path)],
                 check=True,
             )
 
         if repo.commit:
-            console.print(f"💨 Checking out commit [yellow]{repo.commit[:12]}[/yellow]...")
+            console.print(f"  Checking out commit [yellow]{repo.commit[:12]}[/yellow]...")
             subprocess.run(
                 ["git", "checkout", repo.commit],
                 cwd=str(repo_path),
                 check=True,
             )
         elif repo.branch:
-            console.print(f"💨 Checking out branch [yellow]{repo.branch}[/yellow]...")
+            console.print(f"  Checking out branch [yellow]{repo.branch}[/yellow]...")
             subprocess.run(
                 ["git", "fetch", "origin", repo.branch],
                 cwd=str(repo_path),
@@ -89,7 +121,7 @@ def setup_local_env(
             )
 
         if repo.install:
-            console.print(f"💨 Installing [cyan]{repo.name}[/cyan]: {repo.install}")
+            console.print(f"  Installing [cyan]{repo.name}[/cyan]: {repo.install}")
             subprocess.run(
                 repo.install,
                 shell=True,
@@ -97,3 +129,5 @@ def setup_local_env(
                 env=install_env,
                 check=True,
             )
+
+    return venv_path
