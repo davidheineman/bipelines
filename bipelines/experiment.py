@@ -46,7 +46,7 @@ def run_command_and_capture_experiment(
     experiment_info = None
     for line in proc.stdout:
         stripped = line.rstrip("\n")
-        console.print(f"  [dim]{stripped}[/dim]")
+        print(f"  {stripped}")
         if experiment_info is None:
             parsed = parse_experiment_line(stripped)
             if parsed:
