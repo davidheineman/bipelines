@@ -35,8 +35,10 @@ brunner \
 
 ```sh
 brunner-launch \
-    --config example_config.yaml \
     --workspace ai2/adaptability \
     --budget ai2/oe-base \
-    --env BEAKER_TOKEN=DAVID_BEAKER_TOKEN
+    --secret \
+        BEAKER_TOKEN=DAVIDH_BEAKER_TOKEN \
+        GITHUB_TOKEN=GITHUB_TOKEN \
+    -c example_config.yaml
 ```

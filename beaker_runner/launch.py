@@ -13,6 +13,7 @@ def main():
     parser.add_argument("--show-logs", action="store_true", default=True)
     parser.add_argument("--dry-run", action="store_true", default=False)
     parser.add_argument("--env", type=str, nargs="*", default=[], metavar="KEY=VALUE")
+    parser.add_argument("--secret", type=str, nargs="*", default=[], metavar="ENV_VAR=SECRET_NAME")
 
     parser.add_argument(
         "--config", "-c", type=str, required=True,
@@ -25,6 +26,10 @@ def main():
         if "=" not in ev:
             parser.error(f"Invalid env var format '{ev}', expected KEY=VALUE")
 
+    for sec in args.secret:
+        if "=" not in sec:
+            parser.error(f"Invalid secret format '{sec}', expected ENV_VAR=SECRET_NAME")
+
     task_args = ["brunner", "--config", args.config] + extra
 
     recipe = Recipe(
@@ -34,6 +39,7 @@ def main():
         budget=args.budget,
         clusters=args.cluster,
         env_vars=args.env or None,
+        env_secrets=args.secret or None,
         yes=True,
     )
 
