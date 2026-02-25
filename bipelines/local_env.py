@@ -43,7 +43,8 @@ def _env_with_uv() -> dict:
 
 
 def create_venv(env_dir: str = ".bipelines") -> Path:
-    """Create a virtual environment under env_dir/venv. Returns the venv path."""
+    """Create a virtual environment under env_dir/venv and bootstrap it with
+    bipelines and its dependencies. Returns the venv path."""
     env_path = Path(env_dir).resolve()
     venv_path = env_path / "venv"
 
@@ -60,15 +61,40 @@ def create_venv(env_dir: str = ".bipelines") -> Path:
     else:
         subprocess.run([sys.executable, "-m", "venv", str(venv_path)], check=True)
 
+    _bootstrap_venv(venv_path)
     return venv_path
 
 
+def _bootstrap_venv(venv_path: Path):
+    """Install bipelines and its dependencies into the fresh venv so that
+    commands run inside it have access to gantry, beaker-py, etc."""
+    import bipelines
+    project_root = Path(bipelines.__file__).resolve().parent.parent
+
+    uv = _find_uv()
+    venv_python = str(venv_path / "bin" / "python")
+
+    if (project_root / "pyproject.toml").exists():
+        src = str(project_root)
+    else:
+        src = "bipelines"
+
+    console.print(f"  Installing bipelines into venv...")
+    if uv:
+        subprocess.run([uv, "pip", "install", "--python", venv_python, src], check=True)
+    else:
+        subprocess.run([venv_python, "-m", "pip", "install", src], check=True)
+
+
 def get_venv_env(venv_path: Path) -> dict:
-    """Return an env dict that activates the given venv (sets PATH, VIRTUAL_ENV)."""
+    """Return an env dict that activates the given venv (sets PATH, VIRTUAL_ENV,
+    and UV_PYTHON so that uv commands also target this venv)."""
     env = _env_with_uv()
     venv_bin = str(venv_path / "bin")
+    venv_python = str(venv_path / "bin" / "python")
     env["VIRTUAL_ENV"] = str(venv_path)
     env["PATH"] = f"{venv_bin}:{env.get('PATH', '')}"
+    env["UV_PYTHON"] = venv_python
     env.pop("PYTHONHOME", None)
     return env
 
