@@ -27,6 +27,7 @@ class CommandConfig:
 
     command: str
     lib: Optional[str] = None
+    raw: bool = False
 
 
 @dataclass

@@ -13,6 +13,7 @@ from bipelines.config import CommandConfig, BipelineConfig
 from bipelines.experiment import (
     get_experiment_status,
     run_command_and_capture_experiment,
+    run_raw_command,
 )
 from bipelines.local_env import setup_local_env, repo_venv_env
 
@@ -198,13 +199,16 @@ class Bipeline:
         sprint(f"  Command: {cmd.command}")
         if cmd.lib:
             sprint(f"  Lib:     {cmd.lib}")
+        if cmd.raw:
+            sprint("  Mode:    [dim]raw[/dim]")
         sprint(f"  Hash:    {task_hash}")
 
-        cached = self._workload_cache.get(task_hash)
-        if cached is not None:
-            result = self._check_existing_experiment(cached, task_hash)
-            if result is not None:
-                return result
+        if not cmd.raw:
+            cached = self._workload_cache.get(task_hash)
+            if cached is not None:
+                result = self._check_existing_experiment(cached, task_hash)
+                if result is not None:
+                    return result
 
         if cfg.dry_run:
             sprint("  [dim]Dry run — would execute command[/dim]")
@@ -212,6 +216,9 @@ class Bipeline:
 
         cwd = str(cfg.repo_dir(cmd.lib)) if cmd.lib else None
         env = repo_venv_env(cfg.repo_dir(cmd.lib)) if cmd.lib else None
+
+        if cmd.raw:
+            return self._run_raw(cmd, cwd=cwd, env=env)
 
         sprint("  [cyan]Running locally...[/cyan]")
         try:
@@ -237,6 +244,21 @@ class Bipeline:
             sprint(f"  [red]Task ended with status: {final}[/red]")
 
         return final
+
+    def _run_raw(
+        self,
+        cmd: CommandConfig,
+        cwd: Optional[str] = None,
+        env: Optional[dict] = None,
+    ) -> str:
+        sprint("  [cyan]Running raw command...[/cyan]")
+        rc = run_raw_command(command=cmd.command, env=env, cwd=cwd)
+        if rc == 0:
+            sprint("  [green]Command completed successfully.[/green]")
+            return "completed"
+        else:
+            sprint(f"  [red]Command failed with exit code {rc}[/red]")
+            return "failed"
 
     def _check_existing_experiment(
         self, workload: pb2.Workload, task_hash: str

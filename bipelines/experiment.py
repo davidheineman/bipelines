@@ -72,6 +72,32 @@ def run_command_and_capture_experiment(
     return experiment_info
 
 
+def run_raw_command(
+    command: str,
+    env: Optional[dict] = None,
+    cwd: Optional[str] = None,
+) -> int:
+    """Run a command locally, streaming output. Returns the exit code."""
+    merged_env = {**os.environ, **(env or {})}
+    merged_env.setdefault("COLUMNS", "500")
+
+    proc = subprocess.Popen(
+        command,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        env=merged_env,
+        cwd=cwd,
+    )
+
+    for line in proc.stdout:
+        print(f"  {line.rstrip(chr(10))}")
+
+    proc.wait()
+    return proc.returncode
+
+
 def get_experiment_status(beaker: Beaker, experiment_id: str) -> str:
     """Get the current status of a Beaker experiment by ID."""
     workload = beaker.workload.get(experiment_id)
