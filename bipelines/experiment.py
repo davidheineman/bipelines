@@ -9,6 +9,15 @@ from rich.console import Console
 
 console = Console()
 
+
+def sprint(*args, **kwargs):
+    try:
+        console.print(*args, **kwargs)
+    except Exception:
+        plain = " ".join(str(a) for a in args)
+        print(plain)
+
+
 EXPERIMENT_RE = re.compile(r"Experiment:\s+(\S+)\s+→\s+(https://beaker\.org/ex/(\S+))")
 
 
@@ -92,7 +101,7 @@ def wait_for_experiment(
         status = get_experiment_status(beaker, experiment_id)
 
         if status != last_status:
-            console.print(f"  Status: [yellow]{status}[/yellow]")
+            sprint(f"  Status: [yellow]{status}[/yellow]")
             last_status = status
 
         if status in ("completed", "failed", "canceled"):

@@ -18,6 +18,24 @@ from bipelines.local_env import setup_local_env, repo_venv_env
 
 console = Console()
 
+
+def sprint(*args, **kwargs):
+    """console.print wrapper that falls back to plain print on rich internals errors."""
+    try:
+        console.print(*args, **kwargs)
+    except Exception:
+        plain = " ".join(str(a) for a in args)
+        print(plain)
+
+
+def srule(*args, **kwargs):
+    try:
+        console.rule(*args, **kwargs)
+    except Exception:
+        title = args[0] if args else kwargs.get("title", "")
+        print(f"--- {title} ---")
+
+
 HASH_TAG_RE = re.compile(r"\(bipelines:([a-f0-9]+)\)\s*")
 HASH_TAG_SEARCH = "(bipelines:"
 
@@ -63,7 +81,7 @@ class Bipeline:
                 if task_hash and task_hash not in self._workload_cache:
                     self._workload_cache[task_hash] = w
         except Exception as e:
-            console.print(f"  [dim]Warning: could not query Beaker workspace: {e}[/dim]")
+            sprint(f"  [dim]Warning: could not query Beaker workspace: {e}[/dim]")
 
     def _tag_experiment(self, experiment_id: str, task_hash: str):
         """Prepend the bipelines hash tag to the experiment description, preserving any original text.
@@ -79,7 +97,7 @@ class Bipeline:
             if new_desc != current_desc:
                 self.beaker.workload.update(workload, description=new_desc)
         except Exception as e:
-            console.print(f"  [dim]Warning: could not tag experiment: {e}[/dim]")
+            sprint(f"  [dim]Warning: could not tag experiment: {e}[/dim]")
 
     def _wait_for_experiment(
         self,
@@ -96,7 +114,7 @@ class Bipeline:
             status = get_experiment_status(self.beaker, experiment_id)
 
             if status != last_status:
-                console.print(f"  Status: [yellow]{status}[/yellow]")
+                sprint(f"  Status: [yellow]{status}[/yellow]")
                 last_status = status
 
             if status in ("completed", "failed", "canceled"):
@@ -118,25 +136,25 @@ class Bipeline:
         """
         cfg = self.config
 
-        console.print()
-        console.print("[bold]Bipelines[/bold]")
-        console.print(f"  Run hash:   {cfg.run_hash or '(none)'}")
-        console.print(f"  Workspace:  {cfg.workspace or '(none — dedup disabled)'}")
-        console.print(f"  Commands:   {len(cfg.commands)}")
+        sprint()
+        sprint("[bold]Bipelines[/bold]")
+        sprint(f"  Run hash:   {cfg.run_hash or '(none)'}")
+        sprint(f"  Workspace:  {cfg.workspace or '(none — dedup disabled)'}")
+        sprint(f"  Commands:   {len(cfg.commands)}")
         if cfg.repos:
-            console.print(f"  Repos:      {len(cfg.repos)} (local install)")
+            sprint(f"  Repos:      {len(cfg.repos)} (local install)")
         if cfg.dry_run:
-            console.print("  [yellow]DRY RUN — commands will not be executed[/yellow]")
-        console.print()
+            sprint("  [yellow]DRY RUN — commands will not be executed[/yellow]")
+        sprint()
 
         if cfg.workspace:
-            console.print("[dim]Fetching existing experiments from Beaker...[/dim]")
+            sprint("[dim]Fetching existing experiments from Beaker...[/dim]")
             self._build_workload_cache()
 
         if cfg.repos:
-            console.rule("[bold]Setting up local environment[/bold]")
+            srule("[bold]Setting up local environment[/bold]")
             setup_local_env(cfg.repos, env_dir=cfg.local_env_dir)
-            console.print()
+            sprint()
 
         self._print_task_table()
 
@@ -148,19 +166,19 @@ class Bipeline:
             results.append({"command": cmd.command, "hash": task_hash, "status": status})
 
             if status in ("failed", "canceled"):
-                console.print()
-                console.rule("[bold red]Pipeline aborted[/bold red]")
-                console.print()
+                sprint()
+                srule("[bold red]Pipeline aborted[/bold red]")
+                sprint()
                 failed = True
                 break
 
         if not failed:
-            console.print()
-            console.rule("[bold green]All tasks completed[/bold green]")
+            sprint()
+            srule("[bold green]All tasks completed[/bold green]")
 
         completed = sum(1 for r in results if r["status"] == "completed")
-        console.print(f"  Completed: {completed}/{len(cfg.commands)}")
-        console.print()
+        sprint(f"  Completed: {completed}/{len(cfg.commands)}")
+        sprint()
 
         if cfg.state_dir:
             self._write_artifact(
@@ -176,11 +194,11 @@ class Bipeline:
         cfg = self.config
         total = len(cfg.commands)
 
-        console.rule(f"Task {index + 1}/{total}")
-        console.print(f"  Command: {cmd.command}")
+        srule(f"Task {index + 1}/{total}")
+        sprint(f"  Command: {cmd.command}")
         if cmd.lib:
-            console.print(f"  Lib:     {cmd.lib}")
-        console.print(f"  Hash:    {task_hash}")
+            sprint(f"  Lib:     {cmd.lib}")
+        sprint(f"  Hash:    {task_hash}")
 
         cached = self._workload_cache.get(task_hash)
         if cached is not None:
@@ -189,13 +207,13 @@ class Bipeline:
                 return result
 
         if cfg.dry_run:
-            console.print("  [dim]Dry run — would execute command[/dim]")
+            sprint("  [dim]Dry run — would execute command[/dim]")
             return "dry_run"
 
         cwd = str(cfg.repo_dir(cmd.lib)) if cmd.lib else None
         env = repo_venv_env(cfg.repo_dir(cmd.lib)) if cmd.lib else None
 
-        console.print("  [cyan]Running locally...[/cyan]")
+        sprint("  [cyan]Running locally...[/cyan]")
         try:
             exp_name, url, exp_id = run_command_and_capture_experiment(
                 command=cmd.command,
@@ -203,20 +221,20 @@ class Bipeline:
                 cwd=cwd,
             )
         except RuntimeError as e:
-            console.print(f"  [red]Error: {e}[/red]")
+            sprint(f"  [red]Error: {e}[/red]")
             return "failed"
 
-        console.print(f"  Experiment: [cyan]{exp_name}[/cyan]")
-        console.print(f"  URL: [link={url}]{url}[/link]")
+        sprint(f"  Experiment: [cyan]{exp_name}[/cyan]")
+        sprint(f"  URL: [link={url}]{url}[/link]")
 
         self._tag_experiment(exp_id, task_hash)
 
         final = self._wait_for_experiment(exp_id, task_hash)
 
         if final == "completed":
-            console.print("  [green]Task completed successfully.[/green]")
+            sprint("  [green]Task completed successfully.[/green]")
         else:
-            console.print(f"  [red]Task ended with status: {final}[/red]")
+            sprint(f"  [red]Task ended with status: {final}[/red]")
 
         return final
 
@@ -230,30 +248,30 @@ class Bipeline:
         display_status = WORKLOAD_STATUS_DISPLAY.get(workload.status, "unknown")
 
         if display_status == "completed":
-            console.print(f"  [green]Already completed on Beaker — skipping.[/green]")
-            console.print(f"  URL: [link={url}]{url}[/link]")
+            sprint(f"  [green]Already completed on Beaker — skipping.[/green]")
+            sprint(f"  URL: [link={url}]{url}[/link]")
             return "completed"
 
         try:
             status = get_experiment_status(self.beaker, exp_id)
         except Exception as e:
-            console.print(f"  [dim]Could not check previous experiment: {e}[/dim]")
+            sprint(f"  [dim]Could not check previous experiment: {e}[/dim]")
             return None
 
         if status == "completed":
-            console.print(
+            sprint(
                 "  [green]Previously launched experiment completed — skipping.[/green]"
             )
-            console.print(f"  URL: [link={url}]{url}[/link]")
+            sprint(f"  URL: [link={url}]{url}[/link]")
             return "completed"
 
         if status == "running":
-            console.print("  [yellow]Hooking to running experiment...[/yellow]")
-            console.print(f"  URL: [link={url}]{url}[/link]")
+            sprint("  [yellow]Hooking to running experiment...[/yellow]")
+            sprint(f"  URL: [link={url}]{url}[/link]")
             final = self._wait_for_experiment(exp_id, task_hash)
             return final
 
-        console.print(f"  [red]Previous run {status} — re-running.[/red]")
+        sprint(f"  [red]Previous run {status} — re-running.[/red]")
         return None
 
     # ── Display helpers ────────────────────────────────────────────────
@@ -275,8 +293,8 @@ class Bipeline:
             display_cmd = cmd.command if len(cmd.command) <= 80 else cmd.command[:77] + "..."
             table.add_row(str(i + 1), task_hash, display_cmd, status)
 
-        console.print(table)
-        console.print()
+        sprint(table)
+        sprint()
 
     def _write_artifact(self, filename: str, data: dict):
         if not self.config.state_dir:
@@ -288,4 +306,4 @@ class Bipeline:
             with open(path, "w") as f:
                 json.dump(data, f, indent=2)
         except OSError as e:
-            console.print(f"  [dim]Warning: could not write to state_dir: {e}[/dim]")
+            sprint(f"  [dim]Warning: could not write to state_dir: {e}[/dim]")
