@@ -161,20 +161,24 @@ def launch(
         "dry_run": dry_run,
     }
 
-    proc = subprocess.run(
+    proc = subprocess.Popen(
         [venv_python, "-c", _LAUNCH_SCRIPT],
-        input=json.dumps(params),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         text=True,
         cwd=str(repo_path),
-        capture_output=True,
     )
+    proc.stdin.write(json.dumps(params))
+    proc.stdin.close()
+
+    for line in proc.stdout:
+        print(line, end="", flush=True)
+
+    proc.wait()
 
     if proc.returncode != 0:
-        print("==== Launch failed ====")
-        print("stdout:\n", proc.stdout)
-        print("stderr:\n", proc.stderr)
         raise RuntimeError(f"Launch failed with exit code {proc.returncode}")
-
 
 
 def main():
